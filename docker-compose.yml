@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  MemoryCacheAI:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - GIN_MODE=release
+      # Upstash Redis
+      - UPSTASH_REDIS_URL=${UPSTASH_REDIS_URL}
+      - UPSTASH_REDIS_TOKEN=${UPSTASH_REDIS_TOKEN}
+      # Upstash Vector
+      - UPSTASH_VECTOR_URL=${UPSTASH_VECTOR_URL}
+      - UPSTASH_VECTOR_TOKEN=${UPSTASH_VECTOR_TOKEN}
+      # Upstash QStash
+      - QSTASH_URL=${QSTASH_URL:-https://qstash.upstash.io}
+      - QSTASH_TOKEN=${QSTASH_TOKEN}
+      # Jina AI
+      - JINA_API_KEY=${JINA_API_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.MemoryCacheAI.rule=Host(`your-domain.com`)"
+      - "traefik.http.routers.MemoryCacheAI.tls=true"
+      - "traefik.http.routers.MemoryCacheAI.tls.certresolver=letsencrypt" 
