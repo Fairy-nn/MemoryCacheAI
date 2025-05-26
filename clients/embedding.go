@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"aimemohub/config"
+	"github.com/Fairy-nn/MemoryCacheAI/config"
 )
 
 // EmbeddingProvider represents the embedding service provider
