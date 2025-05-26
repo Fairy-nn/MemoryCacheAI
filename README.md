@@ -1,8 +1,8 @@
-# MemoryCacheAI
+# 🧠 MemoryCacheAI
 
 <img width="968" alt="poster" src="https://github.com/user-attachments/assets/31da8491-b7be-4bce-b396-3fa4f4106ecc" />
 
-🧠 An AI assistant memory cache service based on Go + Upstash, providing short-term and long-term memory management.
+An AI assistant memory cache service based on Go + Upstash, providing short-term and long-term memory management.
 
 **Language**: [中文](README.zh.md) | **English**
 
