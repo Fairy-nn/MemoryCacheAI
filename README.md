@@ -330,6 +330,10 @@ bash examples/test_embedding_providers.sh
 3. **Error Handling**: Monitor logs and handle exceptions promptly
 4. **Cost Control**: Set reasonable TTL to avoid storing too much data
 
+## 📄 Troubleshooting
+
+Please refer to [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
 ## 📈 Extended Features
 
 - [ ] Add user authentication and authorization

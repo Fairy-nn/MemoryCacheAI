@@ -53,6 +53,7 @@ type OpenAIClient struct {
 // Jina AI request/response structures
 type JinaEmbeddingRequest struct {
 	Input         []string `json:"input"`
+	Model         string   `json:"model"`
 	Normalized    bool     `json:"normalized"`
 	EmbeddingType string   `json:"embedding_type"`
 }
@@ -154,6 +155,7 @@ func (j *JinaClient) GenerateEmbeddings(texts []string) ([]float64, error) {
 
 	reqBody := JinaEmbeddingRequest{
 		Input:         texts,
+		Model:         "jina-embeddings-v3",
 		Normalized:    true,
 		EmbeddingType: "float",
 	}
@@ -206,6 +208,7 @@ func (j *JinaClient) GenerateBatchEmbeddings(texts []string) ([][]float64, error
 
 	reqBody := JinaEmbeddingRequest{
 		Input:         texts,
+		Model:         "jina-embeddings-v3",
 		Normalized:    true,
 		EmbeddingType: "float",
 	}

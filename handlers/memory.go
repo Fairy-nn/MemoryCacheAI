@@ -307,3 +307,36 @@ func (h *MemoryHandler) GetEmbeddingInfo(c *gin.Context) {
 
 	c.JSON(http.StatusOK, info)
 }
+
+// DeleteMemory handles DELETE /memory/:id
+func (h *MemoryHandler) DeleteMemory(c *gin.Context) {
+	memoryID := c.Param("id")
+	if memoryID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Memory ID is required",
+		})
+		return
+	}
+
+	userID := c.Query("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "User ID is required",
+		})
+		return
+	}
+
+	if err := h.memoryService.DeleteMemory(memoryID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to delete memory",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Memory deleted successfully",
+		"memory_id": memoryID,
+		"user_id":   userID,
+	})
+}

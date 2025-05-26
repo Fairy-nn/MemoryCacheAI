@@ -93,3 +93,24 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// GetEmbeddingDimensions returns the expected dimensions for the current embedding provider
+func GetEmbeddingDimensions() int {
+	switch AppConfig.EmbeddingProvider {
+	case "jina":
+		return 1024 // Jina v3 dimensions
+	case "openai":
+		switch AppConfig.OpenAIEmbeddingModel {
+		case "text-embedding-3-small":
+			return 1536
+		case "text-embedding-3-large":
+			return 3072
+		case "text-embedding-ada-002":
+			return 1536
+		default:
+			return 1536 // default for OpenAI
+		}
+	default:
+		return 1024 // default fallback
+	}
+}

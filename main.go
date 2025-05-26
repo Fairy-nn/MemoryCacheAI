@@ -4,8 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"aimemohub/config"
-	"aimemohub/handlers"
+	"github.com/Fairy-nn/MemoryCacheAI/config"
+	"github.com/Fairy-nn/MemoryCacheAI/handlers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -42,7 +42,7 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "healthy",
-			"service": "aimemohub",
+			"service": "MemoryCacheAI",
 			"version": "1.0.0",
 		})
 	})
@@ -59,6 +59,7 @@ func main() {
 					"query":          "POST /memory/query",
 					"stats":          "GET /memory/stats",
 					"embedding_info": "GET /memory/embedding-info",
+					"delete":         "DELETE /memory/:id?user_id=user-id",
 				},
 				"sessions": map[string]string{
 					"get":     "GET /session/:id",
@@ -89,6 +90,7 @@ func main() {
 		memoryRoutes.POST("/query", memoryHandler.QueryMemory)
 		memoryRoutes.GET("/stats", memoryHandler.GetMemoryStats)
 		memoryRoutes.GET("/embedding-info", memoryHandler.GetEmbeddingInfo)
+		memoryRoutes.DELETE("/:id", memoryHandler.DeleteMemory)
 	}
 
 	// Session routes

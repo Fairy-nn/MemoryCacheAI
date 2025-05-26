@@ -92,11 +92,14 @@ func (m *MemoryService) SaveMemory(req models.SaveMemoryRequest) error {
 
 // QueryMemory searches for relevant memories using semantic similarity
 func (m *MemoryService) QueryMemory(req models.QueryMemoryRequest) (*models.QueryMemoryResponse, error) {
+	fmt.Printf("🔍 QueryMemory: UserID=%s, Query=%s, Limit=%d, MinScore=%f\n", req.UserID, req.Query, req.Limit, req.MinScore)
+
 	// Generate embedding for query
 	queryEmbedding, err := m.embeddingClient.GenerateEmbedding(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
+	fmt.Printf("📊 Generated embedding with %d dimensions\n", len(queryEmbedding))
 
 	// Set default values
 	limit := req.Limit
@@ -106,14 +109,16 @@ func (m *MemoryService) QueryMemory(req models.QueryMemoryRequest) (*models.Quer
 
 	minScore := req.MinScore
 	if minScore <= 0 {
-		minScore = 0.7 // Default similarity threshold
+		minScore = 0.5 // Lower default similarity threshold for better recall
 	}
+	fmt.Printf("⚙️ Using limit=%d, minScore=%f\n", limit, minScore)
 
 	// Query vector database
 	results, err := m.vectorClient.QueryMemories(req.UserID, queryEmbedding, limit, minScore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query memories: %w", err)
 	}
+	fmt.Printf("📋 Vector query returned %d results\n", len(results))
 
 	response := &models.QueryMemoryResponse{
 		Results: results,
@@ -296,4 +301,43 @@ func (m *MemoryService) GetEmbeddingInfo() (map[string]interface{}, error) {
 	}
 
 	return info, nil
+}
+
+// DeleteMemory removes a specific memory by ID for a user
+func (m *MemoryService) DeleteMemory(memoryID string, userID string) error {
+	// First verify that the memory belongs to the specified user
+	// We'll use the QueryMemory method which handles embedding generation
+
+	// Query the memory to verify ownership
+	request := models.QueryMemoryRequest{
+		UserID:   userID,
+		Query:    "verify memory ownership", // Just a placeholder
+		Limit:    100,
+		MinScore: 0.0, // Get all memories regardless of score
+	}
+
+	response, err := m.QueryMemory(request)
+	if err != nil {
+		return fmt.Errorf("failed to verify memory ownership: %w", err)
+	}
+
+	// Check if the memory belongs to the user
+	memoryFound := false
+	for _, result := range response.Results {
+		if id, ok := result.Metadata["id"].(string); ok && id == memoryID {
+			memoryFound = true
+			break
+		}
+	}
+
+	if !memoryFound {
+		return fmt.Errorf("memory not found or does not belong to the specified user")
+	}
+
+	// Delete the memory
+	if err := m.vectorClient.DeleteMemory(memoryID); err != nil {
+		return fmt.Errorf("failed to delete memory: %w", err)
+	}
+
+	return nil
 }

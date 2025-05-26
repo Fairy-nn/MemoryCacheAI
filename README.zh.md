@@ -332,6 +332,10 @@ bash examples/test_embedding_providers.sh
 3. **错误处理**：监控日志，及时处理异常情况
 4. **成本控制**：合理设置 TTL，避免存储过多数据
 
+## 📄 故障排除
+
+请参考 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
 ## 📈 扩展功能
 
 - [ ] 添加用户认证和授权

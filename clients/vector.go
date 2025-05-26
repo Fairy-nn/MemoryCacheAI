@@ -13,9 +13,10 @@ import (
 )
 
 type VectorClient struct {
-	url    string
-	token  string
-	client *http.Client
+	url        string
+	token      string
+	client     *http.Client
+	dimensions int // cached dimensions
 }
 
 type UpsertRequest struct {
@@ -33,7 +34,7 @@ type QueryRequest struct {
 }
 
 type QueryResponse struct {
-	Matches []QueryMatch `json:"matches"`
+	Result []QueryMatch `json:"result"`
 }
 
 type QueryMatch struct {
@@ -133,20 +134,25 @@ func (v *VectorClient) QueryMemories(userID string, queryVector []float64, limit
 		IncludeVectors:  false,
 		Filter:          fmt.Sprintf("user_id = '%s'", userID),
 	}
+	fmt.Printf("🔍 Vector query: UserID=%s, VectorDim=%d, TopK=%d, Filter=%s\n", userID, len(queryVector), limit, request.Filter)
 
 	respBody, err := v.makeRequest("POST", "/query", request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query memories: %w", err)
 	}
+	fmt.Printf("📡 Vector API response: %s\n", string(respBody))
 
 	var response QueryResponse
 	if err := json.Unmarshal(respBody, &response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal query response: %w", err)
 	}
+	fmt.Printf("📊 Raw matches from vector DB: %d\n", len(response.Result))
 
-	results := make([]models.MemoryResult, 0, len(response.Matches))
-	for _, match := range response.Matches {
+	results := make([]models.MemoryResult, 0, len(response.Result))
+	for i, match := range response.Result {
+		fmt.Printf("  Match %d: ID=%s, Score=%f\n", i, match.ID, match.Score)
 		if match.Score < minScore {
+			fmt.Printf("    ❌ Filtered out (score %f < minScore %f)\n", match.Score, minScore)
 			continue
 		}
 
@@ -154,6 +160,12 @@ func (v *VectorClient) QueryMemories(userID string, queryVector []float64, limit
 			Score:    match.Score,
 			Metadata: match.Metadata,
 		}
+
+		// Add memory ID to metadata
+		if result.Metadata == nil {
+			result.Metadata = make(map[string]interface{})
+		}
+		result.Metadata["id"] = match.ID
 
 		// Extract content from metadata
 		if content, ok := match.Metadata["content"].(string); ok {
@@ -166,7 +178,9 @@ func (v *VectorClient) QueryMemories(userID string, queryVector []float64, limit
 		}
 
 		results = append(results, result)
+		fmt.Printf("    ✅ Added to results\n")
 	}
+	fmt.Printf("📋 Final filtered results: %d\n", len(results))
 
 	return results, nil
 }
@@ -185,10 +199,18 @@ func (v *VectorClient) DeleteMemory(id string) error {
 }
 
 func (v *VectorClient) DeleteUserMemories(userID string) error {
+	// Get vector dimensions dynamically
+	dimensions, err := v.GetDimensions()
+	if err != nil {
+		// Fallback to configured dimensions if we can't get them from the database
+		dimensions = config.GetEmbeddingDimensions()
+		fmt.Printf("Warning: Could not get dimensions from database, using configured dimensions %d: %v\n", dimensions, err)
+	}
+
 	// First query all memories for the user
 	queryRequest := QueryRequest{
-		Vector:          make([]float64, 1536), // Dummy vector for querying
-		TopK:            1000,                  // Large number to get all
+		Vector:          make([]float64, dimensions), // Dynamic vector dimensions
+		TopK:            1000,                        // Large number to get all
 		IncludeMetadata: true,
 		IncludeVectors:  false,
 		Filter:          fmt.Sprintf("user_id = '%s'", userID),
@@ -205,7 +227,7 @@ func (v *VectorClient) DeleteUserMemories(userID string) error {
 	}
 
 	// Delete each memory
-	for _, match := range response.Matches {
+	for _, match := range response.Result {
 		if err := v.DeleteMemory(match.ID); err != nil {
 			return fmt.Errorf("failed to delete memory %s: %w", match.ID, err)
 		}
@@ -217,10 +239,18 @@ func (v *VectorClient) DeleteUserMemories(userID string) error {
 func (v *VectorClient) DeleteExpiredMemories() error {
 	now := time.Now().Unix()
 
+	// Get vector dimensions dynamically
+	dimensions, err := v.GetDimensions()
+	if err != nil {
+		// Fallback to configured dimensions if we can't get them from the database
+		dimensions = config.GetEmbeddingDimensions()
+		fmt.Printf("Warning: Could not get dimensions from database, using configured dimensions %d: %v\n", dimensions, err)
+	}
+
 	// Query all memories (this is a simplified approach)
 	queryRequest := QueryRequest{
-		Vector:          make([]float64, 1536), // Dummy vector
-		TopK:            10000,                 // Large number
+		Vector:          make([]float64, dimensions), // Dynamic vector dimensions
+		TopK:            10000,                       // Large number
 		IncludeMetadata: true,
 		IncludeVectors:  false,
 	}
@@ -236,7 +266,7 @@ func (v *VectorClient) DeleteExpiredMemories() error {
 	}
 
 	// Check each memory for expiration
-	for _, match := range response.Matches {
+	for _, match := range response.Result {
 		if timestampFloat, ok := match.Metadata["timestamp"].(float64); ok {
 			if ttlFloat, ok := match.Metadata["ttl"].(float64); ok {
 				expirationTime := int64(timestampFloat) + int64(ttlFloat)
@@ -264,4 +294,33 @@ func (v *VectorClient) GetStats() (map[string]interface{}, error) {
 	}
 
 	return stats, nil
+}
+
+// GetDimensions returns the vector dimensions from the database (with caching)
+func (v *VectorClient) GetDimensions() (int, error) {
+	// Return cached dimensions if available
+	if v.dimensions > 0 {
+		return v.dimensions, nil
+	}
+
+	// Fetch dimensions from database
+	stats, err := v.GetStats()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get vector stats: %w", err)
+	}
+
+	var dimensions int
+	if result, ok := stats["result"].(map[string]interface{}); ok {
+		if dim, ok := result["dimension"].(float64); ok {
+			dimensions = int(dim)
+		}
+	}
+
+	if dimensions == 0 {
+		return 0, fmt.Errorf("could not determine vector dimensions from database")
+	}
+
+	// Cache the dimensions for future use
+	v.dimensions = dimensions
+	return dimensions, nil
 }

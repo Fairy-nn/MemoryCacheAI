@@ -18,10 +18,7 @@ type RedisClient struct {
 	client *http.Client
 }
 
-type RedisCommand struct {
-	Command string        `json:"command"`
-	Args    []interface{} `json:"args,omitempty"`
-}
+type RedisCommand []interface{}
 
 type RedisResponse struct {
 	Result interface{} `json:"result"`
@@ -44,7 +41,13 @@ func (r *RedisClient) executeCommand(cmd RedisCommand) (*RedisResponse, error) {
 		return nil, fmt.Errorf("failed to marshal command: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", r.url, bytes.NewBuffer(jsonData))
+	// Ensure URL has the correct path for Upstash Redis REST API
+	url := r.url
+	if url[len(url)-1] != '/' {
+		url += "/"
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -88,10 +91,7 @@ func (r *RedisClient) SaveSession(sessionData *models.SessionData) error {
 	}
 
 	// Set with TTL of 24 hours
-	cmd := RedisCommand{
-		Command: "SETEX",
-		Args:    []interface{}{key, 86400, string(jsonData)},
-	}
+	cmd := RedisCommand{"SETEX", key, 86400, string(jsonData)}
 
 	_, err = r.executeCommand(cmd)
 	if err != nil {
@@ -100,10 +100,7 @@ func (r *RedisClient) SaveSession(sessionData *models.SessionData) error {
 
 	// Also save user session mapping
 	userKey := fmt.Sprintf("user_sessions:%s", sessionData.UserID)
-	cmd = RedisCommand{
-		Command: "SADD",
-		Args:    []interface{}{userKey, sessionData.SessionID},
-	}
+	cmd = RedisCommand{"SADD", userKey, sessionData.SessionID}
 
 	_, err = r.executeCommand(cmd)
 	if err != nil {
@@ -111,10 +108,7 @@ func (r *RedisClient) SaveSession(sessionData *models.SessionData) error {
 	}
 
 	// Set TTL for user sessions set
-	cmd = RedisCommand{
-		Command: "EXPIRE",
-		Args:    []interface{}{userKey, 86400},
-	}
+	cmd = RedisCommand{"EXPIRE", userKey, 86400}
 
 	_, err = r.executeCommand(cmd)
 	return err
@@ -123,10 +117,7 @@ func (r *RedisClient) SaveSession(sessionData *models.SessionData) error {
 func (r *RedisClient) GetSession(sessionID string) (*models.SessionData, error) {
 	key := fmt.Sprintf("session:%s", sessionID)
 
-	cmd := RedisCommand{
-		Command: "GET",
-		Args:    []interface{}{key},
-	}
+	cmd := RedisCommand{"GET", key}
 
 	resp, err := r.executeCommand(cmd)
 	if err != nil {
@@ -153,10 +144,7 @@ func (r *RedisClient) GetSession(sessionID string) (*models.SessionData, error) 
 func (r *RedisClient) GetUserSessions(userID string) ([]string, error) {
 	key := fmt.Sprintf("user_sessions:%s", userID)
 
-	cmd := RedisCommand{
-		Command: "SMEMBERS",
-		Args:    []interface{}{key},
-	}
+	cmd := RedisCommand{"SMEMBERS", key}
 
 	resp, err := r.executeCommand(cmd)
 	if err != nil {
@@ -186,10 +174,7 @@ func (r *RedisClient) GetUserSessions(userID string) ([]string, error) {
 func (r *RedisClient) DeleteSession(sessionID string) error {
 	key := fmt.Sprintf("session:%s", sessionID)
 
-	cmd := RedisCommand{
-		Command: "DEL",
-		Args:    []interface{}{key},
-	}
+	cmd := RedisCommand{"DEL", key}
 
 	_, err := r.executeCommand(cmd)
 	if err != nil {
