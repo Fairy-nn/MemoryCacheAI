@@ -157,8 +157,6 @@ func (m *MemoryService) DeleteSession(sessionID string, deleteMemories bool) err
 		if err != nil {
 			return fmt.Errorf("failed to get session: %w", err)
 		}
-		// This is a simplified approach - in production, you might want to
-		// query by session_id metadata and delete specific memories
 		fmt.Printf("Note: Memory deletion by session not implemented in this example\n")
 	}
 
@@ -247,7 +245,6 @@ func (m *MemoryService) GetRecentMemories(userID string, limit int) ([]models.Me
 	}
 
 	// Use a generic query to get recent memories
-	// This is a simplified approach - you might want to implement time-based filtering
 	queryReq := models.QueryMemoryRequest{
 		UserID:   userID,
 		Query:    "recent conversation", // Generic query
