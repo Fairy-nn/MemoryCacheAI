@@ -44,8 +44,14 @@ type QueryMatch struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-type DeleteRequest struct {
-	ID string `json:"id"`
+// DeleteByIDRequest represents a delete request using IDs
+type DeleteByIDRequest struct {
+	IDs []string `json:"ids"`
+}
+
+// DeleteByFilterRequest represents a delete request using a filter
+type DeleteByFilterRequest struct {
+	Filter string `json:"filter"`
 }
 
 func NewVectorClient() *VectorClient {
@@ -157,11 +163,12 @@ func (v *VectorClient) QueryMemories(userID string, queryVector []float64, limit
 		}
 
 		result := models.MemoryResult{
+			ID:       match.ID,
 			Score:    match.Score,
 			Metadata: match.Metadata,
 		}
 
-		// Add memory ID to metadata
+		// Add memory ID to metadata as well for backwards compatibility
 		if result.Metadata == nil {
 			result.Metadata = make(map[string]interface{})
 		}
@@ -186,53 +193,37 @@ func (v *VectorClient) QueryMemories(userID string, queryVector []float64, limit
 }
 
 func (v *VectorClient) DeleteMemory(id string) error {
-	request := DeleteRequest{
-		ID: id,
+	fmt.Printf("🗑️ DeleteMemory: Deleting memory with ID=%s\n", id)
+
+	request := DeleteByIDRequest{
+		IDs: []string{id},
 	}
 
-	_, err := v.makeRequest("POST", "/delete", request)
+	respBody, err := v.makeRequest("DELETE", "/delete", request)
 	if err != nil {
+		fmt.Printf("❌ Delete request failed: %v\n", err)
 		return fmt.Errorf("failed to delete memory: %w", err)
 	}
 
+	fmt.Printf("✅ Delete request successful: %s\n", string(respBody))
 	return nil
 }
 
 func (v *VectorClient) DeleteUserMemories(userID string) error {
-	// Get vector dimensions dynamically
-	dimensions, err := v.GetDimensions()
+	fmt.Printf("🗑️ DeleteUserMemories: Deleting all memories for userID=%s\n", userID)
+
+	// Use filter to delete all memories for the user at once
+	request := DeleteByFilterRequest{
+		Filter: fmt.Sprintf("user_id = '%s'", userID),
+	}
+
+	respBody, err := v.makeRequest("DELETE", "/delete", request)
 	if err != nil {
-		// Fallback to configured dimensions if we can't get them from the database
-		dimensions = config.GetEmbeddingDimensions()
-		fmt.Printf("Warning: Could not get dimensions from database, using configured dimensions %d: %v\n", dimensions, err)
+		fmt.Printf("❌ Delete user memories request failed: %v\n", err)
+		return fmt.Errorf("failed to delete user memories: %w", err)
 	}
 
-	// First query all memories for the user
-	queryRequest := QueryRequest{
-		Vector:          make([]float64, dimensions), // Dynamic vector dimensions
-		TopK:            1000,                        // Large number to get all
-		IncludeMetadata: true,
-		IncludeVectors:  false,
-		Filter:          fmt.Sprintf("user_id = '%s'", userID),
-	}
-
-	respBody, err := v.makeRequest("POST", "/query", queryRequest)
-	if err != nil {
-		return fmt.Errorf("failed to query user memories for deletion: %w", err)
-	}
-
-	var response QueryResponse
-	if err := json.Unmarshal(respBody, &response); err != nil {
-		return fmt.Errorf("failed to unmarshal query response: %w", err)
-	}
-
-	// Delete each memory
-	for _, match := range response.Result {
-		if err := v.DeleteMemory(match.ID); err != nil {
-			return fmt.Errorf("failed to delete memory %s: %w", match.ID, err)
-		}
-	}
-
+	fmt.Printf("✅ Delete user memories request successful: %s\n", string(respBody))
 	return nil
 }
 
@@ -284,6 +275,7 @@ func (v *VectorClient) DeleteExpiredMemories() error {
 
 func (v *VectorClient) GetStats() (map[string]interface{}, error) {
 	respBody, err := v.makeRequest("GET", "/info", nil)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vector stats: %w", err)
 	}
@@ -292,6 +284,8 @@ func (v *VectorClient) GetStats() (map[string]interface{}, error) {
 	if err := json.Unmarshal(respBody, &stats); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal stats response: %w", err)
 	}
+
+	fmt.Println("status", stats)
 
 	return stats, nil
 }

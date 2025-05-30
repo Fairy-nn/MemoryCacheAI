@@ -64,13 +64,64 @@ GIN_MODE=debug
 go mod tidy
 ```
 
-### 3. 启动服务
+### 3. 启动后端服务
 
 ```bash
 go run main.go
 ```
 
-服务将在 `http://localhost:8080` 启动。
+后端服务将在 `http://localhost:8080` 启动。
+
+### 4. 启动前端界面（可选）
+
+项目包含一个基于 Next.js 构建的 Web 前端，用于轻松管理和可视化记忆数据。
+
+#### 前置要求
+- Node.js 18+ 和 npm/yarn
+
+#### 安装和运行
+```bash
+# 进入前端目录
+cd frontend
+
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+```
+
+前端将在 `http://localhost:3000` 启动，并自动连接到 `http://localhost:8080` 的后端 API。
+
+#### 前端功能
+- **记忆创建**：保存和管理用户记忆，包含内容、角色和元数据
+- **语义搜索**：使用自然语言查询记忆，支持相似度评分
+- **记忆统计**：查看向量数据库指标和嵌入提供商信息
+- **实时界面**：动态加载状态和刷新功能
+- **现代化 UI**：基于 Next.js、Tailwind CSS 和 Shadcn/ui 组件构建
+
+#### 生产环境构建
+```bash
+# 构建生产版本
+npm run build
+
+# 启动生产服务器
+npm run start
+```
+
+## 👀 前端界面展示
+
+### 记忆创建界面
+![创建记忆](images/create_memories.png)
+保存新记忆，支持内容、角色分配和实时保存状态显示。
+
+### 记忆搜索和结果展示
+![搜索界面](images/search.png)
+支持自然语言语义搜索，具有相似度评分可视化功能。
+
+### 统计信息和记忆管理
+![统计和记忆列表](images/stats_and_memories_list.png)
+查看向量数据库统计信息，管理所有存储的记忆，支持刷新功能。
 
 ## 📚 API 文档
 
@@ -232,14 +283,22 @@ github.com/Fairy-nn/MemoryCacheAI/
 │   └── memory.go
 ├── services/        # 业务逻辑
 │   └── memory.go    # 记忆服务
+├── frontend/        # Web 前端界面 (Next.js)
+│   ├── src/         # 源代码
+│   │   ├── app/     # Next.js 应用目录
+│   │   └── components/ # UI 组件
+│   ├── public/      # 静态资源
+│   ├── package.json # Node.js 依赖配置
+│   └── README.md    # 前端文档
 ├── examples/        # 测试脚本
 │   ├── test_api.sh  # API 测试脚本
 │   └── test_embedding_providers.sh # Embedding 提供商测试
+├── images/          # 截图和文档图片
 ├── main.go          # 主程序入口
 ├── go.mod           # Go 模块文件
 ├── env.example      # 环境变量模板
-├── README.md        # 项目文档 (中文)
-└── README.en.md     # 项目文档 (英文)
+├── README.md        # 项目文档 (英文)
+└── README.zh.md     # 项目文档 (中文)
 ```
 
 ## 🔧 配置说明

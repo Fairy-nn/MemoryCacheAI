@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Brain, Search, Plus, AlertCircle, Database, Settings, Save, X, Trash2, MoreVertical, Loader2 } from "lucide-react";
+import { Brain, Search, Plus, AlertCircle, Database, Settings, Save, X, Trash2, MoreVertical, Loader2, RefreshCw } from "lucide-react";
 
 // Types based on the API models
 interface Memory {
-  id?: string;
+  id: string;
   content: string;
   score?: number;
   metadata?: {
@@ -40,19 +40,20 @@ export default function Dashboard() {
   // State management
   const [currentUser, setCurrentUser] = useState("user-001");
   const [currentSession, setCurrentSession] = useState(`session-${Date.now()}`);
-  const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
-  const [allMemories, setAllMemories] = useState<Memory[]>([]);
-  const [stats, setStats] = useState<MemoryStats | null>(null);
+  const [memories, setMemories] = useState<Memory[]>([]);
+  const [stats, setStats] = useState<any>(null);
   
   // Form states
   const [newMemoryContent, setNewMemoryContent] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [queryResults, setQueryResults] = useState<Memory[]>([]);
   
-  // UI states
-  const [isLoading, setIsLoading] = useState(false);
+  // UI states - separate loading states for different features
+  const [isLoadingSave, setIsLoadingSave] = useState(false);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+  const [isLoadingMemories, setIsLoadingMemories] = useState(false);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [error, setError] = useState("");
-  const [showAllMemories, setShowAllMemories] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [deletingMemoryId, setDeletingMemoryId] = useState<string | null>(null);
   
@@ -88,7 +89,7 @@ export default function Dashboard() {
   const saveMemory = async () => {
     if (!newMemoryContent.trim()) return;
     
-    setIsLoading(true);
+    setIsLoadingSave(true);
     setError("");
     
     try {
@@ -103,18 +104,18 @@ export default function Dashboard() {
       });
       
       setNewMemoryContent("");
-      await Promise.all([fetchRecentMemories(), fetchStats(), showAllMemories && fetchAllMemories()]);
+      await Promise.all([fetchMemories(), fetchStats()]);
     } catch (error) {
       setError(`Failed to save memory: ${error}`);
     } finally {
-      setIsLoading(false);
+      setIsLoadingSave(false);
     }
   };
 
   const queryMemory = async () => {
     if (!searchQuery.trim()) return;
     
-    setIsLoading(true);
+    setIsLoadingSearch(true);
     setError("");
     
     try {
@@ -132,50 +133,31 @@ export default function Dashboard() {
     } catch (error) {
       setError(`Failed to query memory: ${error}`);
     } finally {
-      setIsLoading(false);
+      setIsLoadingSearch(false);
     }
   };
 
-  const searchMemoriesByKeyword = async () => {
-    if (!searchQuery.trim()) return;
-    
-    setIsLoading(true);
-    setError("");
-    
-    try {
-      const response = await apiCall(`/user/${currentUser}/memories/search?q=${encodeURIComponent(searchQuery)}&limit=${searchLimit}`);
-      setQueryResults(response.memories || []);
-    } catch (error) {
-      setError(`Failed to search memories: ${error}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchRecentMemories = async () => {
-    try {
-      const response = await apiCall(`/user/${currentUser}/memories/recent?limit=10`);
-      setRecentMemories(response.memories || []);
-    } catch (error) {
-      console.error('Failed to fetch recent memories:', error);
-    }
-  };
-
-  const fetchAllMemories = async () => {
+  const fetchMemories = async () => {
+    setIsLoadingMemories(true);
     try {
       const response = await apiCall(`/user/${currentUser}/memories/recent?limit=${memoriesLimit}`);
-      setAllMemories(response.memories || []);
+      setMemories(response.memories || []);
     } catch (error) {
-      console.error('Failed to fetch all memories:', error);
+      console.error('Failed to fetch memories:', error);
+    } finally {
+      setIsLoadingMemories(false);
     }
   };
 
   const fetchStats = async () => {
+    setIsLoadingStats(true);
     try {
       const response = await apiCall('/memory/stats');
       setStats(response);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+    } finally {
+      setIsLoadingStats(false);
     }
   };
 
@@ -197,15 +179,10 @@ export default function Dashboard() {
       console.log('Delete memory success:', response);
       
       // Refresh memories
-      await Promise.all([fetchRecentMemories(), fetchStats(), showAllMemories && fetchAllMemories()]);
+      await Promise.all([fetchMemories(), fetchStats()]);
       
       // Remove from query results if present
-      setQueryResults(prev => prev.filter(memory => {
-        const currentMemoryId = memory.id || 
-                              memory.metadata?.id || 
-                              (memory.metadata?.content && memory.content === memory.metadata.content ? memory.content : null);
-        return currentMemoryId !== memoryId;
-      }));
+      setQueryResults(prev => prev.filter(memory => memory.id !== memoryId));
     } catch (error: any) {
       console.error('Delete memory failed:', error);
       setError(`Delete memory failed: ${error.message || error}`);
@@ -217,7 +194,7 @@ export default function Dashboard() {
   const cleanupUserMemories = async () => {
     if (!confirm('Are you sure you want to delete all your memories? This action cannot be undone.')) return;
     
-    setIsLoading(true);
+    setIsLoadingMemories(true);
     setError("");
     
     try {
@@ -225,12 +202,12 @@ export default function Dashboard() {
         method: 'DELETE',
       });
       
-      await Promise.all([fetchRecentMemories(), fetchStats(), showAllMemories && fetchAllMemories()]);
+      await Promise.all([fetchMemories(), fetchStats()]);
       setQueryResults([]);
     } catch (error) {
       setError(`Failed to cleanup memories: ${error}`);
     } finally {
-      setIsLoading(false);
+      setIsLoadingMemories(false);
     }
   };
 
@@ -239,7 +216,7 @@ export default function Dashboard() {
     setCurrentSession(`session-${Date.now()}`);
     setShowSettings(false);
     // Reload data
-    Promise.all([fetchStats(), fetchRecentMemories(), fetchAllMemories()]);
+    Promise.all([fetchStats(), fetchMemories()]);
   };
 
   const cancelSettings = () => {
@@ -250,8 +227,7 @@ export default function Dashboard() {
   // Load initial data
   useEffect(() => {
     fetchStats();
-    fetchRecentMemories();
-    fetchAllMemories();
+    fetchMemories();
   }, [currentUser]);
 
   const formatTimestamp = (timestamp: string) => {
@@ -266,50 +242,30 @@ export default function Dashboard() {
   const MemoryItem = ({ memory, isSearchResult = false }: { memory: Memory, isSearchResult?: boolean }) => {
     console.log('MemoryItem', memory);  
     
-    let memoryId = null;
-    
-    if (memory.id) {
-      memoryId = memory.id;
-      console.log('Using memory.id:', memoryId);
-    } 
-    else if (memory.metadata?.id) {
-      memoryId = memory.metadata.id;
-      console.log('Using memory.metadata.id:', memoryId);
-    }
-    else if (memory.metadata?.content && memory.content === memory.metadata.content) {
-      memoryId = memory.content;
-      console.log('Using content as ID:', memoryId);
-    }
-    else if (memory.content) {
-      memoryId = memory.content;
-      console.log('Using memory.content as ID:', memoryId);
-    }
+    const memoryId = memory.id;
+    console.log('Using memory.id:', memoryId);
     
     const isDeleting = deletingMemoryId === memoryId;
 
     return (
       <div className="border border-gray-200 rounded-xl p-6 bg-white transition-all duration-200 hover:border-gray-300">
         <div className="flex justify-between items-start mb-3">
-          <div>
+          <span className="text-sm text-gray-500 font-mono">
+            {formatTimestamp(memory.timestamp)}
+          </span>
+          <div className="flex items-center gap-3">
             {isSearchResult && memory.score && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                 Score: {memory.score.toFixed(3)}
               </span>
             )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 font-mono">
-              {formatTimestamp(memory.timestamp)}
-            </span>
-            {memoryId && (
-              <button 
-                onClick={() => deleteMemory(memoryId as string)}
-                disabled={isDeleting}
-                className={`p-1.5 ${isDeleting ? 'cursor-not-allowed' : 'cursor-pointer'} text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200`}
-              >
-                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              </button>
-            )}
+            <button 
+              onClick={() => deleteMemory(memoryId)}
+              disabled={isDeleting}
+              className={`p-1.5 ${isDeleting ? 'cursor-not-allowed' : 'cursor-pointer'} text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200`}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            </button>
           </div>
         </div>
         <p className="text-gray-900 leading-relaxed">{memory.content}</p>
@@ -530,6 +486,20 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="p-6">
+                {isLoadingSave && (
+                  <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="animate-ping absolute h-4 w-4 rounded-full bg-green-400 opacity-75"></div>
+                        <div className="relative h-4 w-4 rounded-full bg-green-600"></div>
+                      </div>
+                      <div>
+                        <p className="text-green-800 font-medium">Saving memory...</p>
+                        <p className="text-green-600 text-sm">Processing and storing your information</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <textarea
                   value={newMemoryContent}
                   onChange={(e) => setNewMemoryContent(e.target.value)}
@@ -539,10 +509,14 @@ export default function Dashboard() {
                 <div className="mt-4 flex justify-end">
                   <Button
                     onClick={saveMemory}
-                    disabled={isLoading || !newMemoryContent.trim()}
-                    className="bg-gradient-to-r cursor-pointer from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 border-0 px-6"
+                    disabled={isLoadingSave || !newMemoryContent.trim()}
+                    className={`border-0 px-6 transition-all duration-300 ${
+                      isLoadingSave 
+                        ? 'save-loading text-white' 
+                        : 'bg-gradient-to-r cursor-pointer from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
+                    }`}
                   >
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                    {isLoadingSave ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                     Save Memory
                   </Button>
                 </div>
@@ -558,7 +532,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">Search Memories</h2>
-                    <p className="text-sm text-gray-600 mt-0.5">Find relevant information using AI or keyword search</p>
+                    <p className="text-sm text-gray-600 mt-0.5">Find relevant information using AI semantic search</p>
                   </div>
                 </div>
               </div>
@@ -573,28 +547,35 @@ export default function Dashboard() {
                   />
                   <Button
                     onClick={queryMemory}
-                    disabled={isLoading || !searchQuery.trim()}
-                    className="bg-gradient-to-r cursor-pointer from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 border-0 px-6"
+                    disabled={isLoadingSearch || !searchQuery.trim()}
+                    className={`border-0 px-6 transition-all duration-300 ${
+                      isLoadingSearch 
+                        ? 'search-loading text-white' 
+                        : 'bg-gradient-to-r cursor-pointer from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700'
+                    }`}
                   >
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    AI Search
-                  </Button>
-                  <Button
-                    onClick={searchMemoriesByKeyword}
-                    disabled={isLoading || !searchQuery.trim()}
-                    className="border-gray-300 cursor-pointer text-gray-700 hover:bg-gray-50 px-6"
-                    variant="outline"
-                  >
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Keyword
+                    {isLoadingSearch ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        Searching...
+                      </div>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        AI Search
+                      </>
+                    )}
                   </Button>
                 </div>
 
-                {/* Loading State for Search */}
-                {isLoading && searchQuery && (
+                {/* Loading State for Search with pulsing animation */}
+                {isLoadingSearch && searchQuery && (
                   <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                      <div className="relative">
+                        <div className="animate-ping absolute h-5 w-5 rounded-full bg-blue-400 opacity-75"></div>
+                        <div className="relative h-5 w-5 rounded-full bg-blue-600"></div>
+                      </div>
                       <div>
                         <p className="text-blue-800 font-medium">Searching memories...</p>
                         <p className="text-blue-600 text-sm">Looking for relevant information</p>
@@ -612,7 +593,7 @@ export default function Dashboard() {
                         {queryResults.length} results
                       </span>
                     </div>
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                    <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
                       {queryResults.map((result, index) => (
                         <MemoryItem key={index} memory={result} isSearchResult={true} />
                       ))}
@@ -638,20 +619,55 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="p-6">
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
-                        <div className="text-sm font-medium text-gray-600 mb-1">Total Memories</div>
-                        <div className="text-3xl font-bold text-gray-900">
-                          {stats?.vector_db?.result?.vectorCount || 0}
+                    {isLoadingStats ? (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Total Memories</div>
+                          <div className="flex items-center">
+                            <div className="animate-pulse bg-gray-300 h-8 w-16 rounded"></div>
+                            <div className="ml-2">
+                              <div className="animate-bounce h-2 w-2 bg-purple-400 rounded-full"></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Recent Memories</div>
+                          <div className="flex items-center">
+                            <div className="animate-pulse bg-gray-300 h-8 w-16 rounded"></div>
+                            <div className="ml-2">
+                              <div className="animate-bounce h-2 w-2 bg-blue-400 rounded-full delay-75"></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl">
-                        <div className="text-sm font-medium text-gray-600 mb-1">Recent Memories</div>
-                        <div className="text-3xl font-bold text-gray-900">
-                          {recentMemories.length}
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Vector Count</div>
+                          <div className="text-3xl font-bold text-gray-900">
+                            {stats?.vector_db?.result?.vectorCount || 0}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Dimension</div>
+                          <div className="text-3xl font-bold text-gray-900">
+                            {stats?.vector_db?.result?.dimension || 0}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Index Size</div>
+                          <div className="text-2xl font-bold text-gray-900">
+                            {stats?.vector_db?.result?.indexSize ? `${Math.round(stats.vector_db.result.indexSize / 1024)} KB` : '0 KB'}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl">
+                          <div className="text-sm font-medium text-gray-600 mb-1">Similarity Function</div>
+                          <div className="text-2xl font-bold text-gray-900 uppercase">
+                            {stats?.vector_db?.result?.similarityFunction || 'N/A'}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -667,45 +683,74 @@ export default function Dashboard() {
                         </div>
                         <div>
                           <h2 className="text-xl font-semibold text-gray-900">
-                            {showAllMemories ? 'All Memories' : 'Recent Memories'}
+                            All Memories
                           </h2>
                           <p className="text-sm text-gray-600 mt-0.5">Your stored information</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => setShowAllMemories(!showAllMemories)}
+                          onClick={() => {
+                            fetchMemories();
+                            fetchStats();
+                          }}
                           variant="outline"
                           size="sm"
-                          disabled={isLoading}
-                          className="border-gray-300 cursor-pointer text-gray-700 hover:bg-gray-50 text-xs px-3"
+                          disabled={isLoadingMemories || isLoadingStats}
+                          className="border-blue-200 cursor-pointer text-blue-600 hover:bg-blue-50 hover:border-blue-300 text-xs px-3"
                         >
-                          {showAllMemories ? 'Recent' : 'View All'}
+                          {(isLoadingMemories || isLoadingStats) ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3" />
+                          )}
                         </Button>
                         <Button
                           onClick={cleanupUserMemories}
                           variant="outline"
                           size="sm"
-                          disabled={isLoading}
+                          disabled={isLoadingMemories}
                           className="border-red-200 cursor-pointer text-red-600 hover:bg-red-50 hover:border-red-300 text-xs px-3"
                         >
-                          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Clear All'}
+                          {isLoadingMemories ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Clear All'}
                         </Button>
                       </div>
                     </div>
                   </div>
 
                   <div className="p-6">
-                    {(showAllMemories ? allMemories : recentMemories).length > 0 ? (
+                    {isLoadingMemories ? (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="text-sm text-gray-600">Loading memories...</span>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-blue-600"></div>
+                        </div>
+                        <div className="space-y-4">
+                          {[...Array(3)].map((_, index) => (
+                            <div key={index} className="border border-gray-200 rounded-xl p-6 bg-white animate-pulse">
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="h-4 bg-gray-300 rounded w-32"></div>
+                                <div className="h-4 bg-gray-300 rounded w-4"></div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="h-4 bg-gray-300 rounded w-full"></div>
+                                <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                                <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : memories.length > 0 ? (
                       <div>
                         <div className="flex items-center gap-2 mb-4">
                           <span className="text-sm text-gray-600">Showing</span>
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {(showAllMemories ? allMemories : recentMemories).length} memories
+                            {memories.length} memories
                           </span>
                         </div>
-                        <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                          {(showAllMemories ? allMemories : recentMemories).map((memory, index) => (
+                        <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar">
+                          {memories.map((memory: Memory, index: number) => (
                             <MemoryItem key={index} memory={memory} />
                           ))}
                         </div>

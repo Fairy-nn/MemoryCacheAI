@@ -64,6 +64,7 @@ type QueryMemoryResponse struct {
 
 // MemoryResult represents a single memory search result
 type MemoryResult struct {
+	ID        string                 `json:"id"`
 	Content   string                 `json:"content"`
 	Score     float64                `json:"score"`
 	Metadata  map[string]interface{} `json:"metadata"`

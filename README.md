@@ -66,13 +66,64 @@ GIN_MODE=debug
 go mod tidy
 ```
 
-### 3. Start Service
+### 3. Start Backend Service
 
 ```bash
 go run main.go
 ```
 
-The service will start at `http://localhost:8080`.
+The backend service will start at `http://localhost:8080`.
+
+### 4. Start Frontend (Optional)
+
+The project includes a web frontend built with Next.js for easy memory management and visualization.
+
+#### Prerequisites
+- Node.js 18+ and npm/yarn
+
+#### Setup and Run
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+The frontend will start at `http://localhost:3000` and automatically connect to the backend API at `http://localhost:8080`.
+
+#### Frontend Features
+- **Memory Creation**: Save and manage user memories with content, role, and metadata
+- **Semantic Search**: Query memories using natural language with similarity scoring
+- **Memory Statistics**: View vector database metrics and embedding provider information
+- **Real-time Interface**: Dynamic loading states and refresh functionality
+- **Modern UI**: Built with Next.js, Tailwind CSS, and Shadcn/ui components
+
+#### Production Build
+```bash
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+```
+
+## 👀 Frontend Screenshots
+
+### Memory Creation Interface
+![Create Memory](images/create_memories.png)
+Save new memories with content, role assignment, and real-time saving status.
+
+### Memory Search and Results
+![Search Interface](images/search.png)
+Semantic search with natural language queries and similarity scoring visualization.
+
+### Statistics and Memory Management
+![Stats and Memory List](images/stats_and_memories_list.png)
+View vector database statistics and manage all stored memories with refresh functionality.
 
 ## 📚 API Documentation
 
@@ -234,6 +285,17 @@ github.com/Fairy-nn/MemoryCacheAI/
 │   └── memory.go
 ├── services/         # Business logic
 │   └── memory.go     # Memory service
+├── frontend/         # Web frontend (Next.js)
+│   ├── src/          # Source code
+│   │   ├── app/      # Next.js app directory
+│   │   └── components/ # UI components
+│   ├── public/       # Static assets
+│   ├── package.json  # Node.js dependencies
+│   └── README.md     # Frontend documentation
+├── examples/         # Test scripts
+│   ├── test_api.sh   # API test script
+│   └── test_embedding_providers.sh # Embedding provider test
+├── images/           # Screenshots and documentation images
 ├── main.go           # Main program entry
 ├── go.mod            # Go module file
 ├── env.example       # Environment variable template
