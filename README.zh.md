@@ -1,5 +1,7 @@
 # MemoryCacheAI
 
+<img width="968" alt="poster" src="https://github.com/user-attachments/assets/6dfc6855-3f31-418b-be0b-a222bbeba1ee" />
+
 🧠 一个基于 Go + Upstash 的 AI 助理记忆缓存服务，提供短期和长期记忆管理功能。
 
 **Language**: **Chinese** | [English](README.en.md)
